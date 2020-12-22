@@ -317,7 +317,11 @@ type
     ///   the operation.
     /// </param>
     procedure CalcStream(const Stream: TStream; Size: Int64; var HashResult: TBytes;
-                         const Progress: IDECProgress = nil); overload;
+                         const OnProgress: IDECProgress2 = nil); overload;
+    procedure CalcStream(const Stream: TStream; Size: Int64; var HashResult: TBytes;
+                         const OnProgress: IDECProgress); overload;
+    procedure CalcStream(const Stream: TStream; Size: Int64; var HashResult: TBytes;
+                         const OnProgress: TDECProgress); overload;
     /// <summary>
     ///   Calculates the hash value over a givens stream of bytes
     /// </summary>
@@ -343,7 +347,11 @@ type
     ///   passed as format parameter, if used.
     /// </returns>
     function CalcStream(const Stream: TStream; Size: Int64; Format: TDECFormatClass = nil;
-                        const Progress: IDECProgress = nil): RawByteString; overload;
+                        const OnProgress: IDECProgress2 = nil): RawByteString; overload;
+    function CalcStream(const Stream: TStream; Size: Int64; Format: TDECFormatClass;
+                        const OnProgress: IDECProgress): RawByteString; overload;
+    function CalcStream(const Stream: TStream; Size: Int64; Format: TDECFormatClass;
+                        const OnProgress: TDECProgress): RawByteString; overload;
 
     /// <summary>
     ///   Calculates the hash value over the contents of a given file
@@ -359,7 +367,11 @@ type
     ///   time to time to return the current progress of the operation
     /// </param>
     procedure CalcFile(const FileName: string; var HashResult: TBytes;
-                       const Progress: IDECProgress = nil); overload;
+                       const OnProgress: IDECProgress2 = nil); overload;
+    procedure CalcFile(const FileName: string; var HashResult: TBytes;
+                       const OnProgress: IDECProgress); overload;
+    procedure CalcFile(const FileName: string; var HashResult: TBytes;
+                       const OnProgress: TDECProgress); overload;
     /// <summary>
     ///   Calculates the hash value over the contents of a given file
     /// </summary>
@@ -383,7 +395,11 @@ type
     ///   result in strange characters in the returned result.
     /// </remarks>
     function CalcFile(const FileName: string; Format: TDECFormatClass = nil;
-                      const Progress: IDECProgress = nil): RawByteString; overload;
+                      const OnProgress: IDECProgress2 = nil): RawByteString; overload;
+    function CalcFile(const FileName: string; Format: TDECFormatClass;
+                      const OnProgress: IDECProgress): RawByteString; overload;
+    function CalcFile(const FileName: string; Format: TDECFormatClass;
+                      const OnProgress: TDECProgress): RawByteString; overload;
 
     // mask generation
 
@@ -1064,7 +1080,19 @@ begin
 end;
 
 procedure TDECHash.CalcStream(const Stream: TStream; Size: Int64;
-  var HashResult: TBytes; const Progress: IDECProgress);
+  var HashResult: TBytes; const OnProgress: TDECProgress);
+begin
+  CalcStream(Stream, Size, HashResult, TDECProgressWrapper.Create(Self, OnProgress));
+end;
+
+procedure TDECHash.CalcStream(const Stream: TStream; Size: Int64;
+  var HashResult: TBytes; const OnProgress: IDECProgress);
+begin
+  CalcStream(Stream, Size, HashResult, TDECProgressWrapper.Create(Self, OnProgress));
+end;
+
+procedure TDECHash.CalcStream(const Stream: TStream; Size: Int64;
+  var HashResult: TBytes; const OnProgress: IDECProgress2);
 var
   Buffer: TBytes;
   Bytes: Integer;
@@ -1073,7 +1101,7 @@ begin
   Assert(Assigned(Stream), 'Stream to calculate hash on is not assigned');
 
   SetLength(HashResult, 0);
-  Min := 0;
+  Pos := 0;
   Max := 0;
   try
     Init;
@@ -1097,18 +1125,21 @@ begin
     else
       Bytes := StreamBufferSize + FBufferSize - Bytes;
 
+    Min := Pos;
+    Max := Pos + Size;
+
+    if Assigned(OnProgress) then
+      OnProgress.OnProgressStart(Min, Max);
+
     if Bytes > Size then
       SetLength(Buffer, Size)
     else
       SetLength(Buffer, Bytes);
 
-    Min := Pos;
-    Max := Pos + Size;
-
     while Size > 0 do
     begin
-      if Assigned(Progress) then
-        Progress.OnProgress(Min, Max, Pos);
+      if Assigned(OnProgress) then
+        OnProgress.OnProgress(Pos);
       Bytes := Length(Buffer);
       if Bytes > Size then
         Bytes := Size;
@@ -1122,40 +1153,79 @@ begin
     HashResult := DigestAsBytes;
   finally
     ProtectBytes(Buffer);
-    if Assigned(Progress) then
-      Progress.OnProgress(Min, Max, Max);
+    if Assigned(OnProgress) then
+      if System.ExceptObject <> nil then
+        OnProgress.OnProgressError(Pos, (System.ExceptObject as Exception).Message)
+      else
+        OnProgress.OnProgressStop(Max);
   end;
 end;
 
 function TDECHash.CalcStream(const Stream: TStream; Size: Int64;
-  Format: TDECFormatClass; const Progress: IDECProgress): RawByteString;
+  Format: TDECFormatClass; const OnProgress: TDECProgress): RawByteString;
+begin
+  Result := CalcStream(Stream, Size, Format, TDECProgressWrapper.Create(Self, OnProgress));
+end;
+
+function TDECHash.CalcStream(const Stream: TStream; Size: Int64;
+  Format: TDECFormatClass; const OnProgress: IDECProgress): RawByteString;
+begin
+  Result := CalcStream(Stream, Size, Format, TDECProgressWrapper.Create(Self, OnProgress));
+end;
+
+function TDECHash.CalcStream(const Stream: TStream; Size: Int64;
+  Format: TDECFormatClass; const OnProgress: IDECProgress2): RawByteString;
 var
   Hash: TBytes;
 begin
-  CalcStream(Stream, Size, Hash, Progress);
+  CalcStream(Stream, Size, Hash, OnProgress);
   Result := BytesToRawString(ValidFormat(Format).Encode(Hash));
 end;
 
 procedure TDECHash.CalcFile(const FileName: string; var HashResult: TBytes;
-  const Progress: IDECProgress);
+  const OnProgress: TDECProgress);
+begin
+  CalcFile(FileName, HashResult, TDECProgressWrapper.Create(Self, OnProgress));
+end;
+
+procedure TDECHash.CalcFile(const FileName: string; var HashResult: TBytes;
+  const OnProgress: IDECProgress);
+begin
+  CalcFile(FileName, HashResult, TDECProgressWrapper.Create(Self, OnProgress));
+end;
+
+procedure TDECHash.CalcFile(const FileName: string; var HashResult: TBytes;
+  const OnProgress: IDECProgress2);
 var
   S: TFileStream;
 begin
   SetLength(HashResult, 0);
   S := TFileStream.Create(FileName, fmOpenRead or fmShareDenyNone);
   try
-    CalcStream(S, S.Size, HashResult, Progress);
+    CalcStream(S, S.Size, HashResult, OnProgress);
   finally
     S.Free;
   end;
 end;
 
 function TDECHash.CalcFile(const FileName: string; Format: TDECFormatClass;
-  const Progress: IDECProgress): RawByteString;
+  const OnProgress: TDECProgress): RawByteString;
+begin
+  Result := CalcFile(FileName, Format, TDECProgressWrapper.Create(Self, OnProgress));
+end;
+
+function TDECHash.CalcFile(const FileName: string; Format: TDECFormatClass;
+  const OnProgress: IDECProgress): RawByteString;
+begin
+  Result := CalcFile(FileName, Format, TDECProgressWrapper.Create(Self, OnProgress));
+end;
+
+function TDECHash.CalcFile(const FileName: string; Format: TDECFormatClass;
+  const OnProgress: IDECProgress2): RawByteString;
 var
   Hash: TBytes;
 begin
-  CalcFile(FileName, Hash, Progress);
+  CalcFile(FileName, Hash, OnProgress);
   Result := BytesToRawString(ValidFormat(Format).Encode(Hash));
 end;
 

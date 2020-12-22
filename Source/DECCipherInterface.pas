@@ -66,7 +66,11 @@ type
     ///   optional callback for reporting progress of the operation
     /// </param>
     procedure EncodeStream(const Source, Dest: TStream; DataSize: Int64;
-                           const Progress: IDECProgress = nil);
+                           const Progress: IDECProgress2 = nil); overload;
+    procedure EncodeStream(const Source, Dest: TStream; DataSize: Int64;
+                           const Progress: IDECProgress); overload;
+    procedure EncodeStream(const Source, Dest: TStream; DataSize: Int64;
+                           const Progress: TDECProgress); overload;
 
     /// <summary>
     ///   Decrypts the data contained in a given stream
@@ -84,7 +88,11 @@ type
     ///   optional callback for reporting progress of the operation
     /// </param>
     procedure DecodeStream(const Source, Dest: TStream; DataSize: Int64;
-                           const Progress: IDECProgress = nil);
+                           const Progress: IDECProgress2 = nil); overload;
+    procedure DecodeStream(const Source, Dest: TStream; DataSize: Int64;
+                           const Progress: IDECProgress); overload;
+    procedure DecodeStream(const Source, Dest: TStream; DataSize: Int64;
+                           const Progress: TDECProgress); overload;
 
     /// <summary>
     ///   Reads the contents of one file, encrypts it and stores it in another file
@@ -99,7 +107,9 @@ type
     ///   Optional event which can be passed to get information about the
     ///   progress of the encryption operation
     /// </param>
-    procedure EncodeFile(const SourceFileName, DestFileName: string; const Progress: IDECProgress = nil);
+    procedure EncodeFile(const SourceFileName, DestFileName: string; const Progress: IDECProgress2 = nil); overload;
+    procedure EncodeFile(const SourceFileName, DestFileName: string; const Progress: IDECProgress); overload;
+    procedure EncodeFile(const SourceFileName, DestFileName: string; const Progress: TDECProgress); overload;
 
     /// <summary>
     ///   Reads the contents of one file, decrypts it and stores it in another file
@@ -114,7 +124,9 @@ type
     ///   Optional event which can be passed to get information about the
     ///   progress of the decryption operation
     /// </param>
-    procedure DecodeFile(const SourceFileName, DestFileName: string; const Progress: IDECProgress = nil);
+    procedure DecodeFile(const SourceFileName, DestFileName: string; const Progress: IDECProgress2 = nil); overload;
+    procedure DecodeFile(const SourceFileName, DestFileName: string; const Progress: IDECProgress); overload;
+    procedure DecodeFile(const SourceFileName, DestFileName: string; const Progress: TDECProgress); overload;
 
     /// <summary>
     ///   Encrypts the contents of the passed unicode string

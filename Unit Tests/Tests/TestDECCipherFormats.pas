@@ -106,9 +106,9 @@ type
 
 // Currently commented out because it would require a file as external dependency
 //    procedure TestEncodeFile(const SourceFileName, DestFileName: string;
-//                             const Progress: IDECProgress = nil);
+//                             const OnProgress: IDECProgress2 = nil);
 //    procedure TestDecodeFile(const SourceFileName, DestFileName: string;
-//                             const Progress: IDECProgress = nil);
+//                             const OnProgress: IDECProgress2 = nil);
 
     procedure TestEncodeStringToBytes;
     procedure TestEncodeRawByteStringToBytes;
@@ -352,7 +352,7 @@ begin
         Src.WriteData(SrcBuf, length(SrcBuf));
         Src.Seek(0, TSeekOrigin.soBeginning);
 
-        FCipherTwoFish.DecodeStream(Src, Dest, Src.Size, nil);
+        FCipherTwoFish.DecodeStream(Src, Dest, Src.Size);
 
         Dest.Seek(0, TSeekOrigin.soBeginning);
         SetLength(result, Dest.Size);
@@ -559,7 +559,7 @@ begin
         Src.WriteData(SrcBuf, length(SrcBuf));
         Src.Seek(0, TSeekOrigin.soBeginning);
 
-        FCipherTwoFish.EncodeStream(Src, Dest, Src.Size, nil);
+        FCipherTwoFish.EncodeStream(Src, Dest, Src.Size);
 
         Dest.Seek(0, TSeekOrigin.soBeginning);
         SetLength(result, Dest.Size);

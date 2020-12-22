@@ -35,7 +35,7 @@ type
     ProgressBar1: TProgressBar;
     procedure Button1Click(Sender: TObject);
   public
-    procedure OnProgress(const Min, Max, Pos: Int64); stdcall;
+    procedure OnProgress(const Min, Max, Pos: Int64);
   end;
 
 var

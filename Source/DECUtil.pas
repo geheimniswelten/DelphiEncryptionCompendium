@@ -100,6 +100,27 @@ type
   /// <summary>
   ///   Progress Callback used by Cipher and Hash for Stream and File methods
   /// </summary>
+  /// <param name="Min">
+  ///   Minimum value for a progress display (in byte). If used for files this is
+  ///   usually set to 0 but a stream might be processed starting at a certain
+  ///   position and this would be that start position.
+  /// </param>
+  /// <param name="Max">
+  ///   End position for the operation. In most situations this is Min + Size
+  ///   where size would be the size (in byte) specified by the caller of the
+  ///   cipher or hashing method to be processed.
+  /// </param>
+  /// <param name="Pos">
+  ///   Position (in byte) in regards to Min. e.g. if a stream is used and min
+  ///   is set to 100 because the first 100 bytes shall be skipped, Pos will
+  ///   start at 100 as well and when this event is called after processing
+  ///   64 byte Pos will be 164.
+  /// </param>
+  TDECProgress = reference to procedure(Sender: TObject; const Min, Max, Pos: Int64);
+
+  /// <summary>
+  ///   Progress Callback used by Cipher and Hash for Stream and File methods
+  /// </summary>
   IDECProgress = interface
     ['{64366E77-82FE-4B86-951E-79389729A493}']
     /// <summary>
@@ -122,7 +143,61 @@ type
     ///   start at 100 as well and when this event is called after processing
     ///   64 byte Pos will be 164.
     /// </param>
-    procedure OnProgress(const Min, Max, Pos: Int64); stdcall;
+    procedure OnProgress(const Min, Max, Pos: Int64);
+  end;
+
+  /// <summary>
+  ///   Progress Callback used by Cipher and Hash for Stream and File methods
+  /// </summary>
+  IDECProgress2 = interface
+    ['{72044725-269E-4C43-9605-90B5DB126E65}']
+    /// <summary>
+    ///   Callback used by stream oriented Cipher and Hash functions for reporting
+    ///   the progress of the operation
+    /// </summary>
+    /// <param name="Min">
+    ///   Minimum value for a progress display (in byte). If used for files this is
+    ///   usually set to 0 but a stream might be processed starting at a certain
+    ///   position and this would be that start position.
+    /// </param>
+    /// <param name="Max">
+    ///   End position for the operation. In most situations this is Min + Size
+    ///   where size would be the size (in byte) specified by the caller of the
+    ///   cipher or hashing method to be processed.
+    /// </param>
+    procedure OnProgressStart(const Min, Max: Int64);
+    /// <summary>
+    ///   Callback used by stream oriented Cipher and Hash functions for reporting
+    ///   the progress of the operation
+    /// </summary>
+    /// <param name="Pos">
+    ///   Position (in byte) in regards to Min. e.g. if a stream is used and min
+    ///   is set to 100 because the first 100 bytes shall be skipped, Pos will
+    ///   start at 100 as well and when this event is called after processing
+    ///   64 byte Pos will be 164.
+    /// </param>
+    procedure OnProgress(const Pos: Int64);
+    procedure OnProgressStop(const Pos: Int64);
+    procedure OnProgressError(const Pos: Int64; const ErrorText: string);
+  end;
+
+  /// <summary>
+  ///   Wrapper to convert IDECProgress or TDECProgress to IDECProgress2
+  /// </summary>
+  TDECProgressWrapper = class(TInterfacedObject, IDECProgress2)
+  strict private
+    FSender:    TObject;
+    FMin, FMax: Int64;
+    FIntf:      IDECProgress;
+    FProc:      TDECProgress;
+    procedure OnProgressStart(const Min, Max: Int64);
+    procedure OnProgress     (const Pos: Int64);
+    procedure OnProgressStop (const Pos: Int64);
+    procedure OnProgressError(const Pos: Int64; const ErrorText: string);
+    constructor Create(Sender: TObject; Intf: IDECProgress; Proc: TDECProgress); overload;
+  public
+    class function Create(Sender: TObject; Intf: IDECProgress): IDECProgress2; overload;
+    class function Create(Sender: TObject; Proc: TDECProgress): IDECProgress2; overload;
   end;
 
 // Byte Ordering
@@ -678,6 +753,53 @@ begin
   inherited Create(Format(Translate(Msg), Args));
 end;
 {$ENDIF}
+
+{ TDECProgressWrapper }
+
+class function TDECProgressWrapper.Create(Sender: TObject; Intf: IDECProgress): IDECProgress2;
+begin
+  Result := nil;
+  if Assigned(Intf) then
+    Result := TDECProgressWrapper.Create(Sender, Intf, nil);
+end;
+
+class function TDECProgressWrapper.Create(Sender: TObject; Proc: TDECProgress): IDECProgress2;
+begin
+  Result := nil;
+  if Assigned(Proc) then
+    Result := TDECProgressWrapper.Create(Sender, nil, Proc);
+end;
+
+constructor TDECProgressWrapper.Create(Sender: TObject; Intf: IDECProgress; Proc: TDECProgress);
+begin
+  FSender := Sender;
+  FProc   := Proc;
+  FIntf   := Intf;
+end;
+
+procedure TDECProgressWrapper.OnProgress(const Pos: Int64);
+begin
+  if Assigned(FIntf) then
+    FIntf.OnProgress(FMin, FMax, Pos);
+  if Assigned(FProc) then
+    FProc(FSender, FMin, FMax, Pos);
+end;
+
+procedure TDECProgressWrapper.OnProgressError(const Pos: Int64; const ErrorText: string);
+begin
+  OnProgress(Pos);
+end;
+
+procedure TDECProgressWrapper.OnProgressStart(const Min, Max: Int64);
+begin
+  FMin := Min;
+  FMax := Max;
+end;
+
+procedure TDECProgressWrapper.OnProgressStop(const Pos: Int64);
+begin
+  OnProgress(Pos);
+end;
 
 end.
 
