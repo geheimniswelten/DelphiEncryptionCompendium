@@ -101,33 +101,52 @@ type
     constructor Create(ClassType: TDECClass); overload;
   end;
 
+  TDECProgressState = (dpsStart, dpsProgress, dpsFinish, dpsError);
+  TDECProgressParams = record
+    /// <summary>
+    ///   TDECHash or TDECCipher/TDECCipherModes/TDECFormattedCipher
+    /// </summary>
+    Sender: TObject;
+    Pos, Max: Int64;
+    Percent: Single;
+    State: TDECProgressState;
+    /// <summary>
+    ///   Returns the Exception.Message in the event of a dpsError
+    /// </summary>
+    /// <remarks>
+    ///   Use (System.ExceptObject as Exception) to receive the full exception object
+    /// </remarks>
+    function ErrorMessage: string;
+    /// <summary>
+    ///   raise EAbort
+    /// </summary>
+    procedure BreakProgress;
+  end;
+
   /// <summary>
   ///   Progress Callback used by Cipher and Hash for Stream and File methods
   /// </summary>
-  IDECProgress = interface
-    ['{64366E77-82FE-4B86-951E-79389729A493}']
-    /// <summary>
-    ///   Callback used by stream oriented Cipher and Hash functions for reporting
-    ///   the progress of the operation
-    /// </summary>
-    /// <param name="Min">
-    ///   Minimum value for a progress display (in byte). If used for files this is
-    ///   usually set to 0 but a stream might be processed starting at a certain
-    ///   position and this would be that start position.
-    /// </param>
-    /// <param name="Max">
-    ///   End position for the operation. In most situations this is Min + Size
-    ///   where size would be the size (in byte) specified by the caller of the
-    ///   cipher or hashing method to be processed.
-    /// </param>
-    /// <param name="Pos">
-    ///   Position (in byte) in regards to Min. e.g. if a stream is used and min
-    ///   is set to 100 because the first 100 bytes shall be skipped, Pos will
-    ///   start at 100 as well and when this event is called after processing
-    ///   64 byte Pos will be 164.
-    /// </param>
-    procedure OnProgress(const Min, Max, Pos: Int64); stdcall;
-  end;
+  /// <param name="Min">
+  ///   Minimum value for a progress display (in byte). If used for files this is
+  ///   usually set to 0 but a stream might be processed starting at a certain
+  ///   position and this would be that start position.
+  /// </param>
+  /// <param name="Max">
+  ///   End position for the operation. In most situations this is Min + Size
+  ///   where size would be the size (in byte) specified by the caller of the
+  ///   cipher or hashing method to be processed.
+  /// </param>
+  /// <param name="Pos">
+  ///   Position (in byte) in regards to Min. e.g. if a stream is used and min
+  ///   is set to 100 because the first 100 bytes shall be skipped, Pos will
+  ///   start at 100 as well and when this event is called after processing
+  ///   64 byte Pos will be 164.
+  /// </param>
+  {$IFDEF FPC}
+  TDECProgress = procedure(const Progress: TDECProgressParams) of object;
+  {$ELSE}
+  TDECProgress = reference to procedure(const Progress: TDECProgressParams);
+  {$ENDIF}
 
 // Byte Ordering
 
@@ -674,6 +693,22 @@ begin
   inherited Create(Format(Translate(Msg), Args));
 end;
 {$ENDIF}
+
+{ TDECProgressParams }
+
+procedure TDECProgressParams.BreakProgress;
+begin
+  Abort;
+end;
+
+function TDECProgressParams.ErrorMessage: string;
+begin
+  // function ErrorMessage called inside the error handling of an Try-Except block
+  if {System.}ExceptObject <> nil then
+    Result := ({System.}ExceptObject as Exception).Message
+  else
+    Result := '';
+end;
 
 end.
 

@@ -20,9 +20,9 @@ interface
 
 uses
   {$IFDEF FPC}
-  SysUtils, Classes,
+  SysUtils, Classes, Math,
   {$ELSE}
-  System.SysUtils, System.Classes,
+  System.SysUtils, System.Classes, System.Math,
   {$ENDIF}
   DECCipherBase, DECCipherModes, DECUtil, DECFormatBase,
   DECCipherInterface, DECBaseClass;
@@ -55,7 +55,7 @@ type
     /// </param>
     procedure DoEncodeDecodeStream(const Source, Dest: TStream; DataSize: Int64;
                                    const CipherProc: TDECCipherCodeEvent;
-                                   const Progress: IDECProgress);
+                                   const OnProgress: TDECProgress);
 
     /// <summary>
     ///   Encrypts or decrypts a file and stores the result in another file
@@ -78,7 +78,7 @@ type
     /// </param>
     procedure DoEncodeDecodeFile(const SourceFileName, DestFileName: string;
                                  const Proc: TDECCipherCodeEvent;
-                                 const Progress: IDECProgress);
+                                 const OnProgress: TDECProgress);
   public
     /// <summary>
     ///   Encrypts the contents of a given byte array
@@ -127,7 +127,7 @@ type
     ///   optional callback for reporting progress of the operation
     /// </param>
     procedure EncodeStream(const Source, Dest: TStream; DataSize: Int64;
-                           const Progress: IDECProgress = nil);
+                           const OnProgress: TDECProgress = nil);
 
     /// <summary>
     ///   Decrypts the data contained in a given stream
@@ -148,7 +148,7 @@ type
     ///   optional callback for reporting progress of the operation
     /// </param>
     procedure DecodeStream(const Source, Dest: TStream; DataSize: Int64;
-                           const Progress: IDECProgress = nil);
+                           const OnProgress: TDECProgress = nil);
 
     /// <summary>
     ///   Reads the contents of one file, encrypts it and stores it in another file
@@ -167,7 +167,7 @@ type
     ///   progress of the encryption operation
     /// </param>
     procedure EncodeFile(const SourceFileName, DestFileName: string;
-                         const Progress: IDECProgress = nil);
+                         const OnProgress: TDECProgress = nil);
 
     /// <summary>
     ///   Reads the contents of one file, decrypts it and stores it in another file
@@ -186,7 +186,7 @@ type
     ///   progress of the decryption operation
     /// </param>
     procedure DecodeFile(const SourceFileName, DestFileName: string;
-                         const Progress: IDECProgress = nil);
+                         const OnProgress: TDECProgress = nil);
 
     /// <summary>
     ///   Encrypts the contents of the passed unicode string
@@ -611,11 +611,13 @@ end;
 
 procedure TDECFormattedCipher.DoEncodeDecodeStream(const Source, Dest: TStream; DataSize: Int64;
                                              const CipherProc: TDECCipherCodeEvent;
-                                             const Progress: IDECProgress);
+                                             const OnProgress: TDECProgress);
 var
   Buffer: TBytes;
   BufferSize, Bytes: Integer;
   Min, Max, Pos: Int64;
+  ProgressParams: TDECProgressParams;
+  Ticks: Cardinal;
 begin
   Pos := Source.Position;
   if DataSize < 0 then
@@ -631,14 +633,32 @@ begin
       BufferSize := StreamBufferSize
     else
       BufferSize := StreamBufferSize + Context.BlockSize - BufferSize;
+
+    if Assigned(OnProgress) then
+    begin
+      ProgressParams.Sender  := Self;
+      ProgressParams.Pos     := Pos;
+      ProgressParams.Max     := Max;
+      ProgressParams.Percent := 0;
+      ProgressParams.State   := dpsStart;
+      OnProgress(ProgressParams);
+      ProgressParams.State   := dpsProgress;
+    end;
+
     if DataSize > BufferSize then
       SetLength(Buffer, BufferSize)
     else
       SetLength(Buffer, DataSize);
+
+    Ticks := TThread.GetTickCount;
     while DataSize > 0 do
     begin
-      if Assigned(Progress) then
-        Progress.OnProgress(Min, Max, Pos);
+      if Assigned(OnProgress) and (Integer(TThread.GetTickCount - Ticks) > 200) then begin
+        ProgressParams.Pos     := Pos;
+        ProgressParams.Percent := Pos / {$IFNDEF FPC}System.{$ENDIF}Math.Max(Max - 1, 1) * 100;
+        OnProgress(ProgressParams);
+        Ticks := TThread.GetTickCount;
+      end;
       Bytes := BufferSize;
       if Bytes > DataSize then
         Bytes := DataSize;
@@ -651,28 +671,37 @@ begin
     end;
   finally
     ProtectBytes(Buffer);
-    if Assigned(Progress) then
-      Progress.OnProgress(Min, Max, Max);
+    if Assigned(OnProgress) then
+    begin
+      if {$IFNDEF FPC}System.{$ENDIF}ExceptObject <> nil then
+      begin
+        ProgressParams.Pos   := Pos;
+        ProgressParams.State := dpsError;
+      end else begin
+        ProgressParams.Pos   := Max;
+        ProgressParams.State := dpsFinish;
+      end;
+      ProgressParams.Percent := Pos / {$IFNDEF FPC}System.{$ENDIF}Math.Max(Max - 1, 1) * 100;
+      OnProgress(ProgressParams);
+    end;
   end;
 end;
 
 procedure TDECFormattedCipher.EncodeStream(const Source, Dest: TStream; DataSize: Int64;
-                                           const Progress: IDECProgress);
+                                           const OnProgress: TDECProgress);
 begin
-  DoEncodeDecodeStream(Source, Dest, DataSize,
-                       Encode, Progress);
+  DoEncodeDecodeStream(Source, Dest, DataSize, Encode, OnProgress);
 end;
 
 procedure TDECFormattedCipher.DecodeStream(const Source, Dest: TStream; DataSize: Int64;
-                                           const Progress: IDECProgress);
+                                           const OnProgress: TDECProgress);
 begin
-  DoEncodeDecodeStream(Source, Dest, DataSize,
-                       Decode, Progress);
+  DoEncodeDecodeStream(Source, Dest, DataSize, Decode, OnProgress);
 end;
 
 procedure TDECFormattedCipher.DoEncodeDecodeFile(const SourceFileName, DestFileName: string;
                                                  const Proc: TDECCipherCodeEvent;
-                                                 const Progress: IDECProgress);
+                                                 const OnProgress: TDECProgress);
 var
   S, D: TStream;
 begin
@@ -682,7 +711,7 @@ begin
   try
     D := TFileStream.Create(DestFileName, fmCreate);
     try
-      DoEncodeDecodeStream(S, D, S.Size, Proc, Progress);
+      DoEncodeDecodeStream(S, D, S.Size, Proc, OnProgress);
     finally
       D.Free;
     end;
@@ -691,17 +720,17 @@ begin
   end;
 end;
 
-procedure TDECFormattedCipher.EncodeFile(const SourceFileName, DestFileName: string; const Progress: IDECProgress);
+procedure TDECFormattedCipher.EncodeFile(const SourceFileName, DestFileName: string; const OnProgress: TDECProgress);
 begin
-  DoEncodeDecodeFile(SourceFileName, DestFileName, Encode, Progress);
+  DoEncodeDecodeFile(SourceFileName, DestFileName, Encode, OnProgress);
 end;
 
-procedure TDECFormattedCipher.DecodeFile(const SourceFileName, DestFileName: string; const Progress: IDECProgress);
+procedure TDECFormattedCipher.DecodeFile(const SourceFileName, DestFileName: string; const OnProgress: TDECProgress);
 begin
-  DoEncodeDecodeFile(SourceFileName, DestFileName, Decode, Progress);
+  DoEncodeDecodeFile(SourceFileName, DestFileName, Decode, OnProgress);
 end;
 
-function TDECFormattedCipher.EncodeStringToBytes(const Source: string; Format: TDECFormatClass = nil): TBytes;
+function TDECFormattedCipher.EncodeStringToBytes(const Source: string; Format: TDECFormatClass): TBytes;
 var
   Len: Integer;
 begin
@@ -793,7 +822,7 @@ var
 begin
   if Length(Source) > 0 then
   begin
-    Src := ValidFormat(Format).Decode(SysUtils.BytesOf(Source));
+    Src := ValidFormat(Format).Decode(BytesOf(Source));
 
     Len := Length(Src);
     SetLength(Result, Len);
@@ -919,7 +948,7 @@ var
 begin
   if Length(Source) > 0 then
   begin
-    Src := ValidFormat(Format).Decode(SysUtils.BytesOf(Source));
+    Src := ValidFormat(Format).Decode(BytesOf(Source));
 
     Len := Length(Src);
     SetLength(Tmp, Len);

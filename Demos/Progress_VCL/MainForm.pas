@@ -29,13 +29,13 @@ uses
   DECUtil, DECCiphers, DECCipherBase;
 
 type
-  TFormMain = class(TForm, IDECProgress)
+  TFormMain = class(TForm)
     Button1: TButton;
     Edit1: TEdit;
     ProgressBar1: TProgressBar;
     procedure Button1Click(Sender: TObject);
-  public
-    procedure OnProgress(const Min, Max, Pos: Int64); stdcall;
+  private
+    procedure OnProgress(const Progress: TDECProgressParams);
   end;
 
 var
@@ -72,7 +72,7 @@ begin
       Delete(TargetFile, pos('.', TargetFile), length(TargetFile));
       TargetFile := TargetFile + '.enc';
 
-      Cipher.EncodeFile(Edit1.Text, TargetFile, self);
+      Cipher.EncodeFile(Edit1.Text, TargetFile, OnProgress);
     except
       on E: Exception do
         MessageDlg(E.Message, mtError, [mbOK], -1);
@@ -82,11 +82,19 @@ begin
   end;
 end;
 
-procedure TFormMain.OnProgress(const Min, Max, Pos: Int64);
+procedure TFormMain.OnProgress(const Progress: TDECProgressParams);
 begin
-  ProgressBar1.Min := Min;
+  {
+  ProgressBar1.Min := 0;
   ProgressBar1.Max := Max;
   ProgressBar1.Position := Pos;
+  }
+  ProgressBar1.Max := 1000;
+  ProgressBar1.Position := Round(Progress.Percent * 10);
+
+  Application.ProcessMessages;
+  if Application.Terminated then
+    Progress.BreakProgress;
 end;
 
 end.

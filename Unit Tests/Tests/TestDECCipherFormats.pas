@@ -106,9 +106,9 @@ type
 
 // Currently commented out because it would require a file as external dependency
 //    procedure TestEncodeFile(const SourceFileName, DestFileName: string;
-//                             const Progress: IDECProgress = nil);
+//                             const OnProgress: TDECProgress = nil);
 //    procedure TestDecodeFile(const SourceFileName, DestFileName: string;
-//                             const Progress: IDECProgress = nil);
+//                             const OnProgress: TDECProgress = nil);
 
     procedure TestEncodeStringToBytes;
     procedure TestEncodeRawByteStringToBytes;
