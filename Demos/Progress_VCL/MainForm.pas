@@ -86,8 +86,8 @@ procedure TFormMain.OnProgress(const Progress: TDECProgressParams);
 begin
   {
   ProgressBar1.Min := 0;
-  ProgressBar1.Max := Max;
-  ProgressBar1.Position := Pos;
+  ProgressBar1.Max := Progress.Max;
+  ProgressBar1.Position := Progress.Pos;
   }
   ProgressBar1.Max := 1000;
   ProgressBar1.Position := Round(Progress.Percent * 10);
